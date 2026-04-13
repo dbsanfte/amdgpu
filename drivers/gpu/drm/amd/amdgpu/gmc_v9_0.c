@@ -1205,8 +1205,22 @@ static void gmc_v9_0_get_coherence_flags(struct amdgpu_device *adev,
 		/* FIXME: is this still needed? Or does
 		 * amdgpu_ttm_tt_pde_flags already handle this?
 		 */
-		if (!is_vram)
-			snoop = true;
+		if (!is_vram) {
+			/*
+			 * Scatter-gather BOs (DOORBELL / MMIO_REMAP) map
+			 * external device MMIO ranges (e.g. peer GPU BARs).
+			 * These targets are inherently uncacheable from the
+			 * CPU's perspective, so cache snoops add latency
+			 * without benefit.  Keep MTYPE_NC (bypasses L2,
+			 * writes go directly to fabric/PCIe) but skip
+			 * SNOOPED to eliminate per-cacheline coherence
+			 * probe overhead on every write.
+			 */
+			if (bo->tbo.type == ttm_bo_type_sg)
+				snoop = false;
+			else
+				snoop = true;
+		}
 	}
 
 	if (mtype != MTYPE_NC)
